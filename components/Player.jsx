@@ -86,19 +86,71 @@ export default function Player({ streamUrl }) {
             setIsBuffering(false);
           });
         } else if (isDash) {
-          const dashjs = (await import('dashjs')).default || await import('dashjs');
+          const shaka = await import('shaka-player/dist/shaka-player.compiled.js');
           if (isCancelled) return;
           
-          dash = dashjs.MediaPlayer().create();
+          dash = new shaka.Player();
           dashRef.current = dash;
-          dash.initialize(video, finalStreamUrl, true);
-          dash.on(dashjs.MediaPlayer.events.PLAYBACK_PLAYING, () => setIsBuffering(false));
-          dash.on(dashjs.MediaPlayer.events.PLAYBACK_WAITING, () => setIsBuffering(true));
-          dash.on(dashjs.MediaPlayer.events.ERROR, (e) => {
-            console.warn('DASH Error', e);
-            setError('Stream failed to load.');
+          await dash.attach(video);
+
+          // Extract base URL to fix relative chunk resolving
+          const parsedStreamUrl = new URL(streamUrl);
+          const originalBaseUrl = parsedStreamUrl.origin + parsedStreamUrl.pathname.substring(0, parsedStreamUrl.pathname.lastIndexOf('/') + 1);
+
+          // Route all requests through Cloudflare Worker seamlessly
+          dash.getNetworkingEngine().registerRequestFilter((type, request) => {
+            let requestUrl = request.uris[0];
+
+            if (requestUrl.includes('workers.dev/?url=')) {
+                return;
+            }
+
+            if (requestUrl.includes('workers.dev/') && !requestUrl.includes('?url=')) {
+                const urlParts = new URL(requestUrl);
+                requestUrl = originalBaseUrl + urlParts.pathname.substring(1) + urlParts.search;
+            }
+
+            request.uris[0] = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
+          });
+
+          // Handle ClearKey DRM if keys are passed in the URL query string
+          const urlParams = new URL(streamUrl).searchParams;
+          const keyId = urlParams.get('keyId');
+          const keyVal = urlParams.get('key');
+          
+          let clearKeysConfig = {};
+          if (keyId && keyVal) {
+            clearKeysConfig[keyId] = keyVal;
+          }
+
+          dash.configure({
+            drm: { clearKeys: Object.keys(clearKeysConfig).length > 0 ? clearKeysConfig : undefined },
+            manifest: { dash: { ignoreDrmInfo: true } }
+          });
+
+          dash.addEventListener('error', (event) => {
+            console.warn('Shaka Error:', event.detail || event);
+            if (event.detail && event.detail.code === shaka.util.Error.Code.HTTP_ERROR) {
+               setError('Stream failed to load (HTTP Error).');
+            }
             setIsBuffering(false);
           });
+
+          dash.addEventListener('buffering', (event) => {
+            setIsBuffering(event.buffering);
+          });
+
+          try {
+            // Remove the keys from the URL we pass to load() so it's clean
+            parsedStreamUrl.searchParams.delete('keyId');
+            parsedStreamUrl.searchParams.delete('key');
+            await dash.load(parsedStreamUrl.toString());
+            setIsBuffering(false);
+          } catch (e) {
+            console.error('Shaka load error:', e);
+            setError('Stream failed to load.');
+            setIsBuffering(false);
+          }
         } else if (isTs) {
           const mpegts = (await import('mpegts.js')).default;
           if (isCancelled) return;
@@ -201,7 +253,13 @@ export default function Player({ streamUrl }) {
     return () => {
       isCancelled = true;
       if (hls) hls.destroy();
-      if (dash) dash.reset();
+      if (dash) {
+        if (typeof dash.destroy === 'function') {
+          dash.destroy();
+        } else if (typeof dash.reset === 'function') {
+          dash.reset();
+        }
+      }
       if (mpegtsPlayer) mpegtsPlayer.destroy();
       if (videoRef.current) {
         videoRef.current.src = '';

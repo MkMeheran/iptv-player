@@ -3,10 +3,14 @@ export const defaultPlaylistData = `#EXTM3U
 http://198.195.239.50:8095/tsports/tracks-v1a1/mono.m3u8
 
 
+#EXTINF:-1 group-title="FIFA World Cup 26",FOX Mpd
+https://otte-qw.live.pv-cdn.net/pdx-nitro/live/clients/dash/enc/pfcxjf1zas/out/v1/31d30c91fc65458789b84209d3fa22e4/cenc.mpd?keyId=1f68713028d439ec03be07f56c1d6213&key=20093db6455160fffed4c394def3193d
+
+#EXTINF:-1 group-title="FIFA World Cup 26",BEIN SPORTS XTRA
+https://dc1644a9jazgj.cloudfront.net/beIN_Sports_Xtra_Espanol1080.m3u8
+
 #EXTINF:-1 group-title="FIFA World Cup 26",Fox
 https://d1211whpimeups.cloudfront.net/smil:rtbgo/chunklist_b4096000_slENG.m3u8
-
-
 
 #EXTINF:-1 group-title="FIFA World Cup 26",Football World Cup 2026 FOX
 http://84.17.50.102/fox/index.m3u8
@@ -33,6 +37,7 @@ https://live.thebosstv.com:30443/dwlive/Somoy-TV/chunks.m3u8
 #EXTINF:-1 group-title="FIFA World Cup 26" tvg-logo="https://imglink.cc/cdn/RY7jBwPKAr.jpg", Somoy TV C 🇧🇩
 https://iptv.ryvoxtb.workers.dev/live/somoytv.m3u8?token=698bb62d6919e5c22ec8be7a017971f5&time=1781488364
 
+
 #EXTINF:-1 group-title="FIFA World Cup 26" tvg-logo="https://imglink.cc/cdn/RY7jBwPKAr.jpg", Somoy TV D
 https://tv.beyondtaxconsultants.com/api/robi/lps/http://116.204.149.16/somoytv/tracks-v1a1/mono.m3u8
 
@@ -44,6 +49,19 @@ https://andro.226503.xyz/checklist/androstreamlivebs1.m3u8
 
 #EXTINF:-1 group-title="FIFA World Cup 26" tvg-logo="https://imglink.cc/cdn/RY7jBwPKAr.jpg", FIFA Live - Bangla 🇮🇳
 https://d1g8wgjurz8via.cloudfront.net/bpk-tv/ColorsHD/default/ColorsHD-video=2137600.m3u8
+
+
+#EXTINF:-1 group-title="FIFA World Cup 26",DD Sports
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/b17adfe543354fdd8d189b110617cddd/index.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26",DSports (Opción 11)
+http://177.10.184.193:8000/play/a0fc/index.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26",Bein Xtra (720)
+https://d9ssxzmclhfo4.cloudfront.net/bein_sports720p.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26",FOX Sports (720)
+https://d1jzu95oc8fgt3.cloudfront.net/FOX_Sports720p.m3u8
 
 #EXTINF:-1 group-title="FIFA World Cup 26" tvg-logo="https://imglink.cc/cdn/RY7jBwPKAr.jpg", FIFA Live - Bangla A 🇮🇳
 https://d1g8wgjurz8via.cloudfront.net/bpk-tv/ColorsHD/default/ColorsHD.m3u8
