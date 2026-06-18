@@ -7,11 +7,24 @@ export async function GET(request) {
   if (!targetUrl) return NextResponse.json({ error: 'Missing URL' }, { status: 400 });
 
   try {
-    const workerUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
+    const parsedUrl = new URL(targetUrl);
+    let response;
 
-    const response = await fetch(workerUrl);
+    const isCustomPort = parsedUrl.port && !['80', '443', '8080', '8443'].includes(parsedUrl.port);
+
+    if (isCustomPort) {
+        response = await fetch(targetUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': '*/*'
+            }
+        });
+    } else {
+        const workerUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
+        response = await fetch(workerUrl);
+    }
     
-    if (!response.ok) throw new Error(`Worker responded with ${response.status}`);
+    if (!response.ok) throw new Error(`Source responded with ${response.status}`);
 
     const contentType = response.headers.get('Content-Type') || '';
 
