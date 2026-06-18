@@ -5,16 +5,20 @@ export async function GET(request) {
   if (!targetUrl) return NextResponse.json({ error: 'Missing URL' }, { status: 400 });
 
   try {
-    const targetOrigin = new URL(targetUrl).origin;
     const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': targetUrl,
-        'Origin': targetOrigin
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Referer': 'https://www.google.com/',
+        'Connection': 'keep-alive'
       }
     });
 
-    if (!response.ok) throw new Error('Failed to fetch from source');
+    if (!response.ok) {
+      console.error(`Fetch failed with status: ${response.status}`);
+      return NextResponse.json({ error: `Source responded with ${response.status}` }, { status: response.status });
+    }
 
     const data = await response.arrayBuffer();
     
@@ -26,9 +30,6 @@ export async function GET(request) {
     });
   } catch (err) {
     console.error('Proxy Fetch Error Details:', err); 
-    return NextResponse.json({ 
-      error: 'Failed to fetch proxy', 
-      details: err instanceof Error ? err.message : String(err) 
-    }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
