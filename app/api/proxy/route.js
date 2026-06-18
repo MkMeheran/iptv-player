@@ -25,7 +25,10 @@ export async function GET(request) {
       },
     });
   } catch (err) {
-    console.error('Proxy Fetch Error:', err.message);
-    return NextResponse.json({ error: 'Failed to fetch proxy' }, { status: 500 });
+    console.error('Proxy Fetch Error Details:', err); 
+    return NextResponse.json({ 
+      error: 'Failed to fetch proxy', 
+      details: err instanceof Error ? err.message : String(err) 
+    }, { status: 500 });
   }
 }
