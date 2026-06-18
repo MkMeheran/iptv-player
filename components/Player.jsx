@@ -72,7 +72,9 @@ export default function Player({ streamUrl }) {
       const isTs = url.includes('.ts') || url.includes('.flv');
       
       const isCloudfront = url.includes('cloudfront.net');
-      const shouldUseProxy = useProxyForced || isCloudfront;
+      const isHttp = streamUrl.trim().startsWith('http://');
+      const requiresProxy = isCloudfront || isHttp;
+      const shouldUseProxy = useProxyForced || requiresProxy;
 
       const getProxiedUrl = (originalUrl) => {
         if (shouldUseProxy) {
@@ -382,7 +384,7 @@ export default function Player({ streamUrl }) {
               <RefreshCw size={16} />
               RETRY
             </button>
-            {!useProxyForced && !streamUrl.includes('cloudfront.net') && (
+            {!useProxyForced && !requiresProxy && (
               <button 
                 onClick={() => setUseProxyForced(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white border-2 border-amber-800 transition-colors uppercase font-black text-[12px]"
