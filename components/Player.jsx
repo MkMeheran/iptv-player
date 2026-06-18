@@ -64,9 +64,18 @@ export default function Player({ streamUrl }) {
       const isDash = url.includes('.mpd');
       const isTs = url.includes('.ts') || url.includes('.flv');
 
+      const getProxiedUrl = (originalUrl) => {
+        if (originalUrl.startsWith("http://")) {
+          return `https://tv.meheran.dev/?targetUrl=${encodeURIComponent(originalUrl)}`;
+        }
+        return originalUrl;
+      };
+
+      const finalStreamUrl = getProxiedUrl(streamUrl.trim());
+
       try {
         if (isMp4) {
-          video.src = streamUrl;
+          video.src = finalStreamUrl;
           video.addEventListener('loadedmetadata', () => {
             if (isCancelled) return;
             setIsBuffering(false);
@@ -85,7 +94,7 @@ export default function Player({ streamUrl }) {
           
           dash = dashjs.MediaPlayer().create();
           dashRef.current = dash;
-          dash.initialize(video, streamUrl, true);
+          dash.initialize(video, finalStreamUrl, true);
           dash.on(dashjs.MediaPlayer.events.PLAYBACK_PLAYING, () => setIsBuffering(false));
           dash.on(dashjs.MediaPlayer.events.PLAYBACK_WAITING, () => setIsBuffering(true));
           dash.on(dashjs.MediaPlayer.events.ERROR, (e) => {
@@ -103,7 +112,7 @@ export default function Player({ streamUrl }) {
             mpegtsPlayer = mpegts.createPlayer({
               type: type,
               isLive: true,
-              url: streamUrl,
+              url: finalStreamUrl,
             });
             mpegtsRef.current = mpegtsPlayer;
             mpegtsPlayer.attachMediaElement(video);
@@ -139,7 +148,7 @@ export default function Player({ streamUrl }) {
             });
 
             hlsRef.current = hls;
-            hls.loadSource(streamUrl);
+            hls.loadSource(finalStreamUrl);
             hls.attachMedia(video);
 
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -172,7 +181,7 @@ export default function Player({ streamUrl }) {
             });
           } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             // Fallback for Safari
-            video.src = streamUrl;
+            video.src = finalStreamUrl;
             video.addEventListener('loadedmetadata', () => {
               setIsBuffering(false);
               video.play().catch((err) => {
