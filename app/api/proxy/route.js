@@ -7,24 +7,17 @@ export async function GET(request) {
   if (!targetUrl) return NextResponse.json({ error: 'Missing URL' }, { status: 400 });
 
   try {
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36',
-      'Referer': 'https://livepush.io/',
-      'Origin': 'https://livepush.io/',
-      'Accept': '*/*',
-      'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'cross-site'
-    };
+    const workerUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
 
-    const response = await fetch(targetUrl, { headers });
-    if (!response.ok) throw new Error(`Source responded with ${response.status}`);
+    const response = await fetch(workerUrl);
+    
+    if (!response.ok) throw new Error(`Worker responded with ${response.status}`);
 
     const contentType = response.headers.get('Content-Type') || '';
 
     if (targetUrl.includes('.m3u8') || contentType.includes('mpegurl')) {
       const text = await response.text();
       const urlObj = new URL(targetUrl);
-      
       const basePath = urlObj.origin + urlObj.pathname.substring(0, urlObj.pathname.lastIndexOf('/') + 1);
 
       const rewrittenText = text.split('\n').map(line => {
@@ -39,8 +32,7 @@ export async function GET(request) {
           }
         }
         
-        const appProxyUrl = `/api/proxy?targetUrl=${encodeURIComponent(chunkUrl)}`;
-        return appProxyUrl;
+        return `/api/proxy?targetUrl=${encodeURIComponent(chunkUrl)}`;
       }).join('\n');
 
       return new NextResponse(rewrittenText, {
@@ -49,7 +41,9 @@ export async function GET(request) {
           'Access-Control-Allow-Origin': '*',
         },
       });
-    } else {
+    } 
+    
+    else {
       const data = await response.arrayBuffer();
       return new NextResponse(data, {
         headers: {
@@ -59,7 +53,7 @@ export async function GET(request) {
       });
     }
   } catch (err) {
-    console.error('Proxy Error:', err);
+    console.error('Proxy Error:', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
