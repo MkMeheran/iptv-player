@@ -65,10 +65,7 @@ export default function Player({ streamUrl }) {
       const isTs = url.includes('.ts') || url.includes('.flv');
 
       const getProxiedUrl = (originalUrl) => {
-        if (originalUrl.startsWith("http://")) {
-          return `/api/proxy?targetUrl=${encodeURIComponent(originalUrl)}`;
-        }
-        return originalUrl;
+        return `/api/proxy?targetUrl=${encodeURIComponent(originalUrl)}`;
       };
 
       const finalStreamUrl = getProxiedUrl(streamUrl.trim());
