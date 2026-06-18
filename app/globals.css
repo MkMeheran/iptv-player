@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-space: var(--font-space-mono);
+}
+
+.nesRaised {
+  box-shadow: inset -3px -3px 0px #6b6b6b, inset 3px 3px 0px #e0d8cc;
+}
+
+.nesPressed {
+  box-shadow: inset 2px 2px 0px #6b6b6b, inset -1px -1px 0px #e0d8cc;
+}
+
+.nesDanger {
+  box-shadow: inset -3px -3px 0px #7f0000, inset 3px 3px 0px #ff8080;
+}
+
+body {
+  background-color: #d6d3d1; /* stone-300 */
+  color: #1c1917; /* stone-900 */
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
