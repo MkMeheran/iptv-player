@@ -2,6 +2,12 @@ export const defaultPlaylistData = `#EXTM3U
 #EXTINF:-1 group-title="FIFA World Cup 26",Football World Cup 2026 T-Sports
 http://198.195.239.50:8095/tsports/tracks-v1a1/mono.m3u8
 
+
+#EXTINF:-1 group-title="FIFA World Cup 26",Fox
+https://d1211whpimeups.cloudfront.net/smil:rtbgo/chunklist_b4096000_slENG.m3u8
+
+
+
 #EXTINF:-1 group-title="FIFA World Cup 26",Football World Cup 2026 FOX
 http://84.17.50.102/fox/index.m3u8
 
