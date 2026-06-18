@@ -12,6 +12,13 @@ export default function Player({ streamUrl }) {
   const [isBuffering, setIsBuffering] = useState(false);
   const [error, setError] = useState(null);
   const [showControls, setShowControls] = useState(true);
+  const [useProxyForced, setUseProxyForced] = useState(false);
+  const [lastStreamUrl, setLastStreamUrl] = useState(streamUrl);
+
+  if (streamUrl !== lastStreamUrl) {
+    setLastStreamUrl(streamUrl);
+    setUseProxyForced(false);
+  }
   
   const hlsRef = useRef(null);
   const dashRef = useRef(null);
@@ -63,9 +70,15 @@ export default function Player({ streamUrl }) {
       const isMp4 = url.includes('.mp4') || url.includes('.mkv') || url.includes('.webm');
       const isDash = url.includes('.mpd');
       const isTs = url.includes('.ts') || url.includes('.flv');
+      
+      const isCloudfront = url.includes('cloudfront.net');
+      const shouldUseProxy = useProxyForced || isCloudfront;
 
       const getProxiedUrl = (originalUrl) => {
-        return `/api/proxy?targetUrl=${encodeURIComponent(originalUrl)}`;
+        if (shouldUseProxy) {
+          return `/api/proxy?targetUrl=${encodeURIComponent(originalUrl)}`;
+        }
+        return originalUrl;
       };
 
       const finalStreamUrl = getProxiedUrl(streamUrl.trim());
@@ -97,7 +110,7 @@ export default function Player({ streamUrl }) {
           const parsedStreamUrl = new URL(streamUrl);
           const originalBaseUrl = parsedStreamUrl.origin + parsedStreamUrl.pathname.substring(0, parsedStreamUrl.pathname.lastIndexOf('/') + 1);
 
-          // Route all requests through Cloudflare Worker seamlessly
+          // Route all requests through Cloudflare Worker seamlessly if using proxy
           dash.getNetworkingEngine().registerRequestFilter((type, request) => {
             let requestUrl = request.uris[0];
 
@@ -110,7 +123,11 @@ export default function Player({ streamUrl }) {
                 requestUrl = originalBaseUrl + urlParts.pathname.substring(1) + urlParts.search;
             }
 
-            request.uris[0] = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
+            if (shouldUseProxy) {
+              request.uris[0] = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
+            } else {
+              request.uris[0] = requestUrl;
+            }
           });
 
           // Handle ClearKey DRM if keys are passed in the URL query string
@@ -265,12 +282,14 @@ export default function Player({ streamUrl }) {
         videoRef.current.src = '';
       }
     };
-  }, [streamUrl]);
+  }, [streamUrl, useProxyForced]);
 
   const togglePlay = () => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
-        videoRef.current.play();
+        videoRef.current.play().catch(e => {
+          if (e.name !== 'AbortError') console.warn(e);
+        });
         setIsPlaying(true);
       } else {
         videoRef.current.pause();
@@ -318,7 +337,9 @@ export default function Player({ streamUrl }) {
       setError(null);
       setIsBuffering(true);
       hlsRef.current.startLoad();
-      videoRef.current?.play();
+      videoRef.current?.play().catch(e => {
+        if (e.name !== 'AbortError') console.warn(e);
+      });
     }
   };
 
@@ -353,13 +374,23 @@ export default function Player({ streamUrl }) {
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white p-6 text-center">
           <p className="text-red-400 mb-4 font-space-mono text-[14px] uppercase">{error}</p>
-          <button 
-            onClick={handleRetry}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white border-2 border-red-800 transition-colors uppercase font-black text-[12px]"
-          >
-            <RefreshCw size={16} />
-            RETRY
-          </button>
+          <div className="flex gap-4">
+            <button 
+              onClick={handleRetry}
+              className="flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-700 text-white border border-stone-600 transition-colors uppercase font-black text-[12px]"
+            >
+              <RefreshCw size={16} />
+              RETRY
+            </button>
+            {!useProxyForced && !streamUrl.includes('cloudfront.net') && (
+              <button 
+                onClick={() => setUseProxyForced(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white border-2 border-amber-800 transition-colors uppercase font-black text-[12px]"
+              >
+                TRY WITH PROXY
+              </button>
+            )}
+          </div>
         </div>
       )}
 
