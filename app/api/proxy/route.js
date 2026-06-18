@@ -5,8 +5,18 @@ export async function GET(request) {
   if (!targetUrl) return NextResponse.json({ error: 'Missing URL' }, { status: 400 });
 
   try {
-    const response = await fetch(targetUrl);
-    const data = await response.blob();
+    const targetOrigin = new URL(targetUrl).origin;
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': targetUrl,
+        'Origin': targetOrigin
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to fetch from source');
+
+    const data = await response.arrayBuffer();
     
     return new NextResponse(data, {
       headers: {
@@ -15,6 +25,7 @@ export async function GET(request) {
       },
     });
   } catch (err) {
+    console.error('Proxy Fetch Error:', err.message);
     return NextResponse.json({ error: 'Failed to fetch proxy' }, { status: 500 });
   }
 }
