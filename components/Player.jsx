@@ -66,7 +66,7 @@ export default function Player({ streamUrl }) {
 
       const getProxiedUrl = (originalUrl) => {
         if (originalUrl.startsWith("http://")) {
-          return `https://tv.meheran.dev/?targetUrl=${encodeURIComponent(originalUrl)}`;
+          return `/api/proxy?targetUrl=${encodeURIComponent(originalUrl)}`;
         }
         return originalUrl;
       };
