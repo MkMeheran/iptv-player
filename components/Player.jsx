@@ -115,7 +115,10 @@ export default function Player({ streamUrl }) {
          const isCloudfront = targetUrl.includes('cloudfront.net');
 
          let finalStreamUrl = targetUrl;
-         if (tier === 1 && !isCloudfront) {
+         if (isCloudfront) {
+             // Explicitly force localhost:3000 for cloudfront streams as requested
+             finalStreamUrl = `http://localhost:3000/api/proxy?targetUrl=${encodeURIComponent(targetUrl)}`;
+         } else if (tier === 1) {
              finalStreamUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
          } else if (tier === 3) {
              finalStreamUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(targetUrl)}`;
@@ -169,7 +172,8 @@ export default function Player({ streamUrl }) {
 
                   const isChunkCloudfront = requestUrl.includes('cloudfront.net');
                   let proxiedChunkUrl = requestUrl;
-                  if (tier === 1 && !isChunkCloudfront) proxiedChunkUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
+                  if (isChunkCloudfront) proxiedChunkUrl = `http://localhost:3000/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
+                  else if (tier === 1) proxiedChunkUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
                   else if (tier === 3) proxiedChunkUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(requestUrl)}`;
                   else proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
 
