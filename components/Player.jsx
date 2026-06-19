@@ -13,6 +13,7 @@ export default function Player({ streamUrl }) {
   const [error, setError] = useState(null);
   const [showControls, setShowControls] = useState(true);
   const [useProxyForced, setUseProxyForced] = useState(false);
+  const [debugLogs, setDebugLogs] = useState([]);
   const [lastStreamUrl, setLastStreamUrl] = useState(streamUrl);
 
   if (streamUrl !== lastStreamUrl) {
@@ -24,6 +25,8 @@ export default function Player({ streamUrl }) {
   const dashRef = useRef(null);
   const mpegtsRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
+  const loadTierRef = useRef(null);
+  const [activeTier, setActiveTier] = useState(0);
 
   // Auto-hide controls logic
   const handleMouseMove = useCallback(() => {
@@ -59,6 +62,21 @@ export default function Player({ streamUrl }) {
     let mpegtsPlayer = null;
     let isCancelled = false;
 
+    const debugLog = (msg, type = 'info') => {
+      let color = 'color: #00e676'; // success/info
+      if (type === 'error') color = 'color: #ff1744';
+      if (type === 'warning') color = 'color: #ff9100';
+      if (type === 'step') color = 'color: #29b6f6; font-weight: bold';
+      if (type === 'network') color = 'color: #b388ff';
+
+      console.log(`%c[Shaka Debug] ${msg}`, color);
+
+      setDebugLogs(prev => {
+        const newLogs = [...prev, { id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), msg, type }];
+        return newLogs.slice(-10); // keep last 10 logs
+      });
+    };
+
     const initPlayer = async () => {
       const video = videoRef.current;
       if (!video) return;
@@ -71,200 +89,250 @@ export default function Player({ streamUrl }) {
       const isDash = url.includes('.mpd');
       const isTs = url.includes('.ts') || url.includes('.flv');
       
-      const isCloudfront = url.includes('cloudfront.net');
-      const isHttp = streamUrl.trim().startsWith('http://');
-      const requiresProxy = isCloudfront || isHttp;
-      const shouldUseProxy = useProxyForced || requiresProxy;
+      const maxTiers = 3;
+      let currentTier = 1;
 
-      const getProxiedUrl = (originalUrl) => {
-        if (shouldUseProxy) {
-          return `/api/proxy?targetUrl=${encodeURIComponent(originalUrl)}`;
-        }
-        return originalUrl;
+      const cleanupPlayers = () => {
+         if (dashRef.current) {
+             if (typeof dashRef.current.destroy === 'function') dashRef.current.destroy();
+             else if (typeof dashRef.current.reset === 'function') dashRef.current.reset();
+             dashRef.current = null;
+         }
+         if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+         if (mpegtsRef.current) { mpegtsRef.current.destroy(); mpegtsRef.current = null; }
+         if (videoRef.current) videoRef.current.src = '';
       };
 
-      const finalStreamUrl = getProxiedUrl(streamUrl.trim());
+      const handleTierFailure = (failedTier, errorEvent) => {
+         if (isCancelled) return;
+         const code = errorEvent?.code || errorEvent?.type || 'UNKNOWN';
+         debugLog(`Error in Server ${failedTier} (Code: ${code}). Auto-fallback disabled.`, 'error');
+         
+         setError(`Server ${failedTier} failed to load (Code: ${code}). Please manually try another server.`);
+         setIsBuffering(false);
+      };
 
-      try {
-        if (isMp4) {
-          video.src = finalStreamUrl;
-          video.addEventListener('loadedmetadata', () => {
-            if (isCancelled) return;
-            setIsBuffering(false);
-            video.play().catch((err) => {
-              if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
-            });
-          });
-          video.addEventListener('error', () => {
-            if (isCancelled) return;
-            setError('Video failed to load.');
-            setIsBuffering(false);
-          });
-        } else if (isDash) {
-          const shaka = await import('shaka-player/dist/shaka-player.compiled.js');
-          if (isCancelled) return;
-          
-          dash = new shaka.Player();
-          dashRef.current = dash;
-          await dash.attach(video);
+      const loadTier = async (tier) => {
+         if (isCancelled) return;
+         currentTier = tier;
+         setActiveTier(tier);
+         cleanupPlayers();
 
-          // Extract base URL to fix relative chunk resolving
-          const parsedStreamUrl = new URL(streamUrl);
-          const originalBaseUrl = parsedStreamUrl.origin + parsedStreamUrl.pathname.substring(0, parsedStreamUrl.pathname.lastIndexOf('/') + 1);
+         let proxyName = "Cloudflare Worker";
+         if (tier === 2) proxyName = "Next.js Proxy";
+         if (tier === 3) proxyName = "Custom IP Proxy";
 
-          // Route all requests through Cloudflare Worker seamlessly if using proxy
-          dash.getNetworkingEngine().registerRequestFilter((type, request) => {
-            let requestUrl = request.uris[0];
+         const targetUrl = streamUrl.trim();
 
-            if (requestUrl.includes('workers.dev/?url=')) {
-                return;
-            }
+         let finalStreamUrl = targetUrl;
+         if (tier === 1) {
+             finalStreamUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
+         } else if (tier === 2) {
+             finalStreamUrl = `/api/proxy?targetUrl=${encodeURIComponent(targetUrl)}`;
+         } else if (tier === 3) {
+             finalStreamUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(targetUrl)}`;
+         }
 
-            if (requestUrl.includes('workers.dev/') && !requestUrl.includes('?url=')) {
-                const urlParts = new URL(requestUrl);
-                requestUrl = originalBaseUrl + urlParts.pathname.substring(1) + urlParts.search;
-            }
+         debugLog(`Step ${tier}: Attempting Tier ${tier} (${proxyName})`, 'step');
+         setIsBuffering(true);
 
-            if (shouldUseProxy) {
-              request.uris[0] = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
+         try {
+            if (isMp4) {
+               video.src = finalStreamUrl;
+               video.addEventListener('loadedmetadata', () => {
+                  if (isCancelled) return;
+                  setIsBuffering(false);
+                  debugLog(`Success! MP4 loaded via Tier ${tier}.`, 'info');
+                  video.play().catch((err) => {
+                     if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
+                  });
+               }, { once: true });
+               video.addEventListener('error', (e) => {
+                  if (isCancelled) return;
+                  handleTierFailure(tier, e);
+               }, { once: true });
+            } else if (isDash) {
+               const shaka = await import('shaka-player/dist/shaka-player.compiled.js');
+               if (isCancelled) return;
+               
+               dash = new shaka.Player();
+               dashRef.current = dash;
+               await dash.attach(video);
+
+               const originalBaseUrl = new URL(streamUrl).origin + new URL(streamUrl).pathname.substring(0, new URL(streamUrl).pathname.lastIndexOf('/') + 1);
+               let chunkLogCount = 0;
+
+               dash.getNetworkingEngine().registerRequestFilter((type, request) => {
+                  let requestUrl = request.uris[0];
+                  if (requestUrl.includes('targetUrl=') || requestUrl.includes('?url=')) return;
+
+                  if (requestUrl.includes('/api/proxy')) {
+                     const cleanPath = requestUrl.substring(requestUrl.indexOf('/api/proxy') + 10);
+                     requestUrl = originalBaseUrl + (cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath);
+                  } else if (requestUrl.includes('<YOUR_CUSTOM_IP_PROXY_HERE>') || requestUrl.includes('workers.dev')) {
+                     try {
+                        const urlParts = new URL(requestUrl);
+                        requestUrl = originalBaseUrl + urlParts.pathname.substring(1) + urlParts.search;
+                     } catch(e) {}
+                  }
+
+                  let proxiedChunkUrl = requestUrl;
+                  if (currentTier === 1) proxiedChunkUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
+                  else if (currentTier === 2) proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
+                  else if (currentTier === 3) proxiedChunkUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(requestUrl)}`;
+
+                  request.uris[0] = proxiedChunkUrl;
+
+                  if (chunkLogCount < 3 && type === shaka.net.NetworkingEngine.RequestType.SEGMENT) {
+                     debugLog(`Network Filter: Rewriting chunk URL -> [Tier ${currentTier}]`, 'network');
+                     chunkLogCount++;
+                  }
+               });
+
+               const urlParams = new URL(streamUrl).searchParams;
+               const keyId = urlParams.get('keyId');
+               const keyVal = urlParams.get('key');
+               let clearKeysConfig = {};
+               if (keyId && keyVal) clearKeysConfig[keyId] = keyVal;
+
+               dash.configure({
+                  drm: { clearKeys: Object.keys(clearKeysConfig).length > 0 ? clearKeysConfig : undefined },
+                  manifest: { dash: { ignoreDrmInfo: true }, retryParameters: { maxAttempts: 2, baseDelay: 1000, timeout: 10000 } },
+                  streaming: { retryParameters: { maxAttempts: 2, baseDelay: 1000, timeout: 10000 } }
+               });
+
+               dash.getNetworkingEngine().registerResponseFilter((type, response) => {
+                  if (type === shaka.net.NetworkingEngine.RequestType.SEGMENT) {
+                     const uint8 = new Uint8Array(response.data.slice(0, 50));
+                     const str = new TextDecoder().decode(uint8).toLowerCase();
+                     if (str.includes('<!doctype html') || str.includes('<html')) {
+                        debugLog(`Warning: Expected video chunk, but received HTML page from Tier ${currentTier}! (Cloudflare Captcha or Error Page?)`, 'warning');
+                     }
+                  }
+               });
+
+               dash.addEventListener('error', (event) => {
+                  const err = event.detail || event;
+                  
+                  if (err.category === shaka.util.Error.Category.DRM) {
+                     const originalError = err.data && err.data[0];
+                     const drmMsg = originalError ? (originalError.message || originalError) : err.message;
+                     debugLog(`DRM Error: ${drmMsg} (Code: ${err.code})`, 'error');
+                  }
+                  
+                  if (err.severity === shaka.util.Error.Severity.CRITICAL || err.code === shaka.util.Error.Code.HTTP_ERROR || err.code === shaka.util.Error.Code.BAD_HTTP_STATUS) {
+                     handleTierFailure(currentTier, err);
+                  }
+               });
+               dash.addEventListener('buffering', (event) => setIsBuffering(event.buffering));
+
+               const parsedUrl = new URL(finalStreamUrl);
+               parsedUrl.searchParams.delete('keyId');
+               parsedUrl.searchParams.delete('key');
+               
+               await dash.load(parsedUrl.toString());
+               if (isCancelled) return;
+               debugLog(`Success! DASH manifest loaded via Tier ${tier}. Waiting for chunks...`, 'info');
+
+            } else if (isTs) {
+               const mpegts = (await import('mpegts.js')).default;
+               if (isCancelled) return;
+               
+               if (mpegts.getFeatureList().mseLivePlayback) {
+                  const type = url.includes('.flv') ? 'flv' : 'mpegts';
+                  mpegtsPlayer = mpegts.createPlayer({ type: type, isLive: true, url: finalStreamUrl });
+                  mpegtsRef.current = mpegtsPlayer;
+                  mpegtsPlayer.attachMediaElement(video);
+                  mpegtsPlayer.load();
+                  
+                  const playPromise = mpegtsPlayer.play();
+                  if (playPromise !== undefined) {
+                     playPromise.then(() => {
+                        setIsBuffering(false);
+                        debugLog(`Success! MPEGTS loaded via Tier ${tier}.`, 'info');
+                     }).catch(err => {
+                        if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
+                     });
+                  }
+                  
+                  mpegtsPlayer.on(mpegts.Events.ERROR, (errType, errDetail) => {
+                     handleTierFailure(tier, { type: errType, code: errDetail });
+                  });
+               }
             } else {
-              request.uris[0] = requestUrl;
+               const Hls = (await import('hls.js')).default;
+               if (isCancelled) return;
+               
+               if (Hls.isSupported()) {
+                  hls = new Hls({
+                     maxBufferLength: 30, maxMaxBufferLength: 60,
+                     enableWorker: true, lowLatencyMode: true,
+                     liveMaxLatencyDurationCount: 5, liveSyncDurationCount: 2,
+                     manifestLoadingMaxRetry: 2, manifestLoadingMaxRetryTimeout: 2000,
+                     levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 2,
+                     manifestLoadingTimeOut: 10000, fragLoadingTimeOut: 10000, levelLoadingTimeOut: 10000
+                  });
+                  hlsRef.current = hls;
+                  hls.loadSource(finalStreamUrl);
+                  hls.attachMedia(video);
+
+                  hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                     setIsBuffering(false);
+                     debugLog(`Success! HLS manifest loaded via Tier ${tier}.`, 'info');
+                     video.play().catch(err => {
+                        if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
+                     });
+                  });
+
+                  hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+                     const payload = data.payload;
+                     if (payload && payload.byteLength > 0) {
+                        const uint8 = new Uint8Array(payload.slice(0, 50));
+                        const str = new TextDecoder().decode(uint8).toLowerCase();
+                        if (str.includes('<!doctype html') || str.includes('<html')) {
+                           debugLog(`Warning: Expected video chunk, but received HTML page from Tier ${currentTier}! (Proxy Blocked)`, 'warning');
+                           hls.destroy();
+                           handleTierFailure(tier, { code: 'INVALID_CONTENT_HTML' });
+                        }
+                     }
+                  });
+
+                  hls.on(Hls.Events.ERROR, (event, data) => {
+                     if (data.response && data.response.code >= 400) {
+                        handleTierFailure(tier, { code: `HTTP_${data.response.code}` });
+                        return;
+                     }
+
+                     if (data.fatal) {
+                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                           handleTierFailure(tier, { code: data.details });
+                        } else {
+                           handleTierFailure(tier, { code: data.type });
+                        }
+                     }
+                  });
+               } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                  video.src = finalStreamUrl;
+                  video.addEventListener('loadedmetadata', () => {
+                     setIsBuffering(false);
+                     debugLog(`Success! Native HLS loaded via Tier ${tier}.`, 'info');
+                     video.play().catch(err => {
+                        if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
+                     });
+                  }, { once: true });
+                  video.addEventListener('error', (e) => {
+                     if (isCancelled) return;
+                     handleTierFailure(tier, e);
+                  }, { once: true });
+               }
             }
-          });
+         } catch (err) {
+            handleTierFailure(tier, err);
+         }
+      };
 
-          // Handle ClearKey DRM if keys are passed in the URL query string
-          const urlParams = new URL(streamUrl).searchParams;
-          const keyId = urlParams.get('keyId');
-          const keyVal = urlParams.get('key');
-          
-          let clearKeysConfig = {};
-          if (keyId && keyVal) {
-            clearKeysConfig[keyId] = keyVal;
-          }
-
-          dash.configure({
-            drm: { clearKeys: Object.keys(clearKeysConfig).length > 0 ? clearKeysConfig : undefined },
-            manifest: { dash: { ignoreDrmInfo: true } }
-          });
-
-          dash.addEventListener('error', (event) => {
-            console.warn('Shaka Error:', event.detail || event);
-            if (event.detail && event.detail.code === shaka.util.Error.Code.HTTP_ERROR) {
-               setError('Stream failed to load (HTTP Error).');
-            }
-            setIsBuffering(false);
-          });
-
-          dash.addEventListener('buffering', (event) => {
-            setIsBuffering(event.buffering);
-          });
-
-          try {
-            // Remove the keys from the URL we pass to load() so it's clean
-            parsedStreamUrl.searchParams.delete('keyId');
-            parsedStreamUrl.searchParams.delete('key');
-            await dash.load(parsedStreamUrl.toString());
-            setIsBuffering(false);
-          } catch (e) {
-            console.error('Shaka load error:', e);
-            setError('Stream failed to load.');
-            setIsBuffering(false);
-          }
-        } else if (isTs) {
-          const mpegts = (await import('mpegts.js')).default;
-          if (isCancelled) return;
-          
-          if (mpegts.getFeatureList().mseLivePlayback) {
-            const type = url.includes('.flv') ? 'flv' : 'mpegts';
-            
-            mpegtsPlayer = mpegts.createPlayer({
-              type: type,
-              isLive: true,
-              url: finalStreamUrl,
-            });
-            mpegtsRef.current = mpegtsPlayer;
-            mpegtsPlayer.attachMediaElement(video);
-            mpegtsPlayer.load();
-            
-            const playPromise = mpegtsPlayer.play();
-            if (playPromise !== undefined) {
-              playPromise.then(() => setIsBuffering(false)).catch((err) => {
-                if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
-              });
-            }
-            
-            mpegtsPlayer.on(mpegts.Events.ERROR, (errType, errDetail) => {
-              console.warn('MPEGTS Error:', errType, errDetail);
-              setError('Stream failed to load.');
-              setIsBuffering(false);
-            });
-          }
-        } else {
-          // Default to HLS
-          const Hls = (await import('hls.js')).default;
-          if (isCancelled) return;
-          
-          if (Hls.isSupported()) {
-            hls = new Hls({
-              maxBufferLength: 30,
-              maxMaxBufferLength: 60,
-              enableWorker: true,
-              lowLatencyMode: true,
-              // Live Edge Forcing: Drop old chunks if too far behind and jump to live
-              liveMaxLatencyDurationCount: 5,
-              liveSyncDurationCount: 2,
-            });
-
-            hlsRef.current = hls;
-            hls.loadSource(finalStreamUrl);
-            hls.attachMedia(video);
-
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-              setIsBuffering(false);
-              video.play().catch((err) => {
-                if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
-                setIsPlaying(false);
-              });
-            });
-
-            hls.on(Hls.Events.ERROR, (event, data) => {
-              if (data.fatal) {
-                switch (data.type) {
-                  case Hls.ErrorTypes.NETWORK_ERROR:
-                    console.warn('Network dropped. Trying to fetch live data again...');
-                    hls.startLoad();
-                    break;
-                  case Hls.ErrorTypes.MEDIA_ERROR:
-                    console.warn('Old chunk missing or corrupt. Jumping to live edge...');
-                    hls.recoverMediaError();
-                    break;
-                  default:
-                    console.warn('Fatal error, cannot recover', data);
-                    setError('Stream failed to load.');
-                    setIsBuffering(false);
-                    hls.destroy();
-                    break;
-                }
-              }
-            });
-          } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            // Fallback for Safari
-            video.src = finalStreamUrl;
-            video.addEventListener('loadedmetadata', () => {
-              setIsBuffering(false);
-              video.play().catch((err) => {
-                if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
-              });
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Player initialization failed:', err);
-        if (!isCancelled) {
-          setError('Failed to load video player engine.');
-          setIsBuffering(false);
-        }
-      }
+      loadTierRef.current = loadTier;
+      loadTier(1);
     };
 
     initPlayer();
@@ -352,6 +420,40 @@ export default function Player({ streamUrl }) {
       onTouchStart={handleMouseMove}
       className="relative w-full h-full bg-black overflow-hidden flex flex-col"
     >
+      {/* Debug UI Overlay */}
+      {debugLogs.length > 0 && (
+        <div className="absolute top-4 left-4 z-50 bg-black/80 p-3 text-[10px] font-mono rounded border border-stone-800 max-w-[50%] transition-opacity duration-300 pointer-events-auto">
+           <div className="flex justify-between items-center mb-2 gap-4">
+             <h3 className="text-stone-400 font-bold uppercase tracking-wider">Proxy Debug Logs</h3>
+             <button 
+                onClick={() => {
+                   const logText = debugLogs.map(l => `[${l.time}] [${l.type.toUpperCase()}] ${l.msg}`).join('\n');
+                   navigator.clipboard.writeText(logText).then(() => alert('Logs copied to clipboard!'));
+                }}
+                className="text-stone-400 hover:text-white bg-stone-800 px-2 py-1 rounded text-[9px] uppercase font-bold transition-colors border border-stone-600"
+             >
+                Copy Logs
+             </button>
+           </div>
+           <div className="flex flex-col gap-1 overflow-y-auto max-h-[300px]">
+             {debugLogs.map(log => {
+               let textClass = "text-green-400";
+               if (log.type === 'error') textClass = "text-red-400";
+               if (log.type === 'warning') textClass = "text-orange-400 font-bold";
+               if (log.type === 'step') textClass = "text-blue-400 font-bold";
+               if (log.type === 'network') textClass = "text-purple-400";
+
+               return (
+                 <div key={log.id} className={`${textClass} break-all`}>
+                   <span className="text-stone-500 mr-2">[{log.time}]</span>
+                   {log.msg}
+                 </div>
+               );
+             })}
+           </div>
+        </div>
+      )}
+
       {/* Video Element */}
       <video
         ref={videoRef}
@@ -367,31 +469,71 @@ export default function Player({ streamUrl }) {
 
       {/* Buffering Indicator */}
       {isBuffering && streamUrl && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-stone-100"></div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto z-40">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mb-6"></div>
+          
+          <div className="flex gap-4 mb-6">
+            {[1, 2, 3].map(t => (
+               <button
+                 key={t}
+                 onClick={(e) => { e.stopPropagation(); if (loadTierRef.current) loadTierRef.current(t); }}
+                 className={`px-6 py-2 rounded text-sm uppercase font-bold border-2 transition-all ${
+                   activeTier === t
+                     ? 'bg-amber-600 text-white border-amber-400 scale-105 shadow-lg shadow-amber-500/20'
+                     : 'bg-stone-800 text-stone-400 border-stone-600 hover:bg-stone-700 hover:text-white'
+                 }`}
+               >
+                 Server {t}
+               </button>
+             ))}
+          </div>
+
+          {debugLogs.length > 0 && (
+            <div className="text-amber-400 font-mono text-[12px] text-center max-w-[80%] drop-shadow-lg font-bold animate-pulse bg-black/50 px-4 py-2 rounded">
+               {debugLogs[debugLogs.length - 1].msg}
+            </div>
+          )}
         </div>
       )}
 
       {/* Error Overlay */}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white p-6 text-center">
-          <p className="text-red-400 mb-4 font-space-mono text-[14px] uppercase">{error}</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white p-6 text-center z-40">
+          <p className="text-red-400 mb-6 font-space-mono text-[14px] uppercase">{error}</p>
+          
+          <div className="flex gap-4 mb-6">
+            {[1, 2, 3].map(t => (
+               <button
+                 key={t}
+                 onClick={(e) => { e.stopPropagation(); if (loadTierRef.current) loadTierRef.current(t); }}
+                 className={`px-6 py-2 rounded text-sm uppercase font-bold border-2 transition-all ${
+                   activeTier === t
+                     ? 'bg-amber-600 text-white border-amber-400 scale-105 shadow-lg shadow-amber-500/20'
+                     : 'bg-stone-800 text-stone-400 border-stone-600 hover:bg-stone-700 hover:text-white'
+                 }`}
+               >
+                 Server {t}
+               </button>
+             ))}
+          </div>
+
           <div className="flex gap-4">
-            <button 
+             <button 
               onClick={handleRetry}
               className="flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-700 text-white border border-stone-600 transition-colors uppercase font-black text-[12px]"
             >
               <RefreshCw size={16} />
               RETRY
             </button>
-            {!useProxyForced && !requiresProxy && (
-              <button 
-                onClick={() => setUseProxyForced(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white border-2 border-amber-800 transition-colors uppercase font-black text-[12px]"
-              >
-                TRY WITH PROXY
-              </button>
-            )}
+            <button
+              onClick={() => {
+                const logText = debugLogs.map(l => `[${l.time}] [${l.type.toUpperCase()}] ${l.msg}`).join('\n');
+                navigator.clipboard.writeText(logText).then(() => alert('Logs copied to clipboard!'));
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-700 transition-colors uppercase font-black text-[12px]"
+            >
+              COPY LOGS
+            </button>
           </div>
         </div>
       )}

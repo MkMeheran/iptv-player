@@ -35,8 +35,15 @@ export async function GET(request) {
         if (isM3u8) {
             const text = await fetchResponse.text();
             
-            // আপনার নিজস্ব প্রক্সির বেস ইউআরএল তৈরি করা হচ্ছে
-            const proxyBaseUrl = `${request.nextUrl.origin}${request.nextUrl.pathname}?targetUrl=`;
+            // Nginx বা রিভার্স প্রক্সি থেকে আসল ডোমেইনের নাম বের করা
+            const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+            const protocol = request.headers.get('x-forwarded-proto') || 'https';
+            
+            // যদি আসল ডোমেইন পাওয়া যায় সেটি ব্যবহার করবে, নাহলে ডিফল্টটা
+            const realOrigin = host ? `${protocol}://${host}` : request.nextUrl.origin;
+            
+            // এবার আসল ডোমেইন দিয়ে প্রক্সির বেস ইউআরএল তৈরি
+            const proxyBaseUrl = `${realOrigin}${request.nextUrl.pathname}?targetUrl=`;
             
             const lines = text.split('\n');
             const modifiedLines = lines.map(line => {
