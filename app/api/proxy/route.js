@@ -13,11 +13,12 @@ export async function GET(request) {
         const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
         let fetchResponse;
 
-        // ১. কাস্টম পোর্ট চেকিং (Cloudflare-এর পোর্ট ব্লক বাইপাস করা)
+        // ১. কাস্টম পোর্ট চেকিং এবং Cloudfront চেকিং
         const isCustomPort = parsedUrl.port && !['80', '443', '8080', '8443'].includes(parsedUrl.port);
+        const isCloudfront = parsedUrl.hostname.includes('cloudfront.net');
 
-        if (isCustomPort) {
-            // Cloudflare-এ না পাঠিয়ে Next.js নিজে সরাসরি ফেচ করবে
+        if (isCustomPort || isCloudfront) {
+            // Cloudflare-এ না পাঠিয়ে Next.js নিজে সরাসরি ফেচ করবে (Cloudfront এবং কাস্টম পোর্টের জন্য)
             fetchResponse = await fetch(targetUrl, {
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
             });
