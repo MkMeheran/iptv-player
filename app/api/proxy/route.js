@@ -39,11 +39,11 @@ export async function GET(request) {
             const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
             const protocol = request.headers.get('x-forwarded-proto') || 'https';
             
-            // যদি আসল ডোমেইন পাওয়া যায় সেটি ব্যবহার করবে, নাহলে ডিফল্টটা
+            // যদি আসল ডোমেইন পাওয়া যায় সেটি ব্যবহার করবে, নাহলে ডিফল্টটা (Localhost-এর জন্য)
             const realOrigin = host ? `${protocol}://${host}` : request.nextUrl.origin;
             
-            // এবার আসল ডোমেইন দিয়ে প্রক্সির বেস ইউআরএল তৈরি
-            const proxyBaseUrl = `${realOrigin}${request.nextUrl.pathname}?targetUrl=`;
+            // Relative URL ব্যবহার করলে ব্রাউজার নিজেই সঠিক ডোমেইন ও https বসিয়ে নেবে
+            const proxyBaseUrl = `/api/proxy?targetUrl=`;
             
             const lines = text.split('\n');
             const modifiedLines = lines.map(line => {

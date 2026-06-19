@@ -13,7 +13,6 @@ export default function Player({ streamUrl }) {
   const [error, setError] = useState(null);
   const [showControls, setShowControls] = useState(true);
   const [useProxyForced, setUseProxyForced] = useState(false);
-  const [debugLogs, setDebugLogs] = useState([]);
   const [lastStreamUrl, setLastStreamUrl] = useState(streamUrl);
 
   if (streamUrl !== lastStreamUrl) {
@@ -26,7 +25,6 @@ export default function Player({ streamUrl }) {
   const mpegtsRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const loadTierRef = useRef(null);
-  const [activeTier, setActiveTier] = useState(0);
 
   // Auto-hide controls logic
   const handleMouseMove = useCallback(() => {
@@ -62,20 +60,6 @@ export default function Player({ streamUrl }) {
     let mpegtsPlayer = null;
     let isCancelled = false;
 
-    const debugLog = (msg, type = 'info') => {
-      let color = 'color: #00e676'; // success/info
-      if (type === 'error') color = 'color: #ff1744';
-      if (type === 'warning') color = 'color: #ff9100';
-      if (type === 'step') color = 'color: #29b6f6; font-weight: bold';
-      if (type === 'network') color = 'color: #b388ff';
-
-      console.log(`%c[Shaka Debug] ${msg}`, color);
-
-      setDebugLogs(prev => {
-        const newLogs = [...prev, { id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), msg, type }];
-        return newLogs.slice(-10); // keep last 10 logs
-      });
-    };
 
     const initPlayer = async () => {
       const video = videoRef.current;
@@ -89,8 +73,8 @@ export default function Player({ streamUrl }) {
       const isDash = url.includes('.mpd');
       const isTs = url.includes('.ts') || url.includes('.flv');
       
-      const maxTiers = 3;
-      let currentTier = 1;
+      const tierOrder = [2, 1, 3];
+      let currentTierIndex = 0;
 
       const cleanupPlayers = () => {
          if (dashRef.current) {
@@ -106,16 +90,20 @@ export default function Player({ streamUrl }) {
       const handleTierFailure = (failedTier, errorEvent) => {
          if (isCancelled) return;
          const code = errorEvent?.code || errorEvent?.type || 'UNKNOWN';
-         debugLog(`Error in Server ${failedTier} (Code: ${code}). Auto-fallback disabled.`, 'error');
+         console.log(`[Error] Server ${failedTier} failed (Code: ${code}). Switching...`);
          
-         setError(`Server ${failedTier} failed to load (Code: ${code}). Please manually try another server.`);
-         setIsBuffering(false);
+         if (currentTierIndex < tierOrder.length - 1) {
+            currentTierIndex++;
+            loadTier(tierOrder[currentTierIndex]);
+         } else {
+            console.error('[Error] All tiers exhausted. Stream failed.');
+            setError(`Stream failed to load (Code: ${code}). Please try again later.`);
+            setIsBuffering(false);
+         }
       };
 
       const loadTier = async (tier) => {
          if (isCancelled) return;
-         currentTier = tier;
-         setActiveTier(tier);
          cleanupPlayers();
 
          let proxyName = "Cloudflare Worker";
@@ -133,7 +121,7 @@ export default function Player({ streamUrl }) {
              finalStreamUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(targetUrl)}`;
          }
 
-         debugLog(`Step ${tier}: Attempting Tier ${tier} (${proxyName})`, 'step');
+         console.log(`[Proxy Step] Attempting Server ${tier} (${proxyName})`);
          setIsBuffering(true);
 
          try {
@@ -142,7 +130,7 @@ export default function Player({ streamUrl }) {
                video.addEventListener('loadedmetadata', () => {
                   if (isCancelled) return;
                   setIsBuffering(false);
-                  debugLog(`Success! MP4 loaded via Tier ${tier}.`, 'info');
+                  console.log(`[Success] MP4 loaded via Server ${tier}.`);
                   video.play().catch((err) => {
                      if (err.name !== 'AbortError') console.warn('Auto-play prevented:', err);
                   });
@@ -177,14 +165,14 @@ export default function Player({ streamUrl }) {
                   }
 
                   let proxiedChunkUrl = requestUrl;
-                  if (currentTier === 1) proxiedChunkUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
-                  else if (currentTier === 2) proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
-                  else if (currentTier === 3) proxiedChunkUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(requestUrl)}`;
+                  if (tier === 1) proxiedChunkUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
+                  else if (tier === 2) proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
+                  else if (tier === 3) proxiedChunkUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(requestUrl)}`;
 
                   request.uris[0] = proxiedChunkUrl;
 
                   if (chunkLogCount < 3 && type === shaka.net.NetworkingEngine.RequestType.SEGMENT) {
-                     debugLog(`Network Filter: Rewriting chunk URL -> [Tier ${currentTier}]`, 'network');
+                     console.log(`[Network] Rewriting chunk URL -> [Server ${tier}]`);
                      chunkLogCount++;
                   }
                });
@@ -206,7 +194,7 @@ export default function Player({ streamUrl }) {
                      const uint8 = new Uint8Array(response.data.slice(0, 50));
                      const str = new TextDecoder().decode(uint8).toLowerCase();
                      if (str.includes('<!doctype html') || str.includes('<html')) {
-                        debugLog(`Warning: Expected video chunk, but received HTML page from Tier ${currentTier}! (Cloudflare Captcha or Error Page?)`, 'warning');
+                        console.warn(`[Warning] Expected video chunk, but received HTML page from Server ${tier}!`);
                      }
                   }
                });
@@ -217,11 +205,11 @@ export default function Player({ streamUrl }) {
                   if (err.category === shaka.util.Error.Category.DRM) {
                      const originalError = err.data && err.data[0];
                      const drmMsg = originalError ? (originalError.message || originalError) : err.message;
-                     debugLog(`DRM Error: ${drmMsg} (Code: ${err.code})`, 'error');
+                     console.error(`[DRM Error] ${drmMsg} (Code: ${err.code})`);
                   }
                   
                   if (err.severity === shaka.util.Error.Severity.CRITICAL || err.code === shaka.util.Error.Code.HTTP_ERROR || err.code === shaka.util.Error.Code.BAD_HTTP_STATUS) {
-                     handleTierFailure(currentTier, err);
+                     handleTierFailure(tier, err);
                   }
                });
                dash.addEventListener('buffering', (event) => setIsBuffering(event.buffering));
@@ -232,7 +220,7 @@ export default function Player({ streamUrl }) {
                
                await dash.load(parsedUrl.toString());
                if (isCancelled) return;
-               debugLog(`Success! DASH manifest loaded via Tier ${tier}. Waiting for chunks...`, 'info');
+               console.log(`[Success] DASH manifest loaded via Server ${tier}. Waiting for chunks...`);
 
             } else if (isTs) {
                const mpegts = (await import('mpegts.js')).default;
@@ -332,7 +320,7 @@ export default function Player({ streamUrl }) {
       };
 
       loadTierRef.current = loadTier;
-      loadTier(1);
+      loadTier(tierOrder[0]);
     };
 
     initPlayer();
@@ -420,40 +408,6 @@ export default function Player({ streamUrl }) {
       onTouchStart={handleMouseMove}
       className="relative w-full h-full bg-black overflow-hidden flex flex-col"
     >
-      {/* Debug UI Overlay */}
-      {debugLogs.length > 0 && (
-        <div className="absolute top-4 left-4 z-50 bg-black/80 p-3 text-[10px] font-mono rounded border border-stone-800 max-w-[50%] transition-opacity duration-300 pointer-events-auto">
-           <div className="flex justify-between items-center mb-2 gap-4">
-             <h3 className="text-stone-400 font-bold uppercase tracking-wider">Proxy Debug Logs</h3>
-             <button 
-                onClick={() => {
-                   const logText = debugLogs.map(l => `[${l.time}] [${l.type.toUpperCase()}] ${l.msg}`).join('\n');
-                   navigator.clipboard.writeText(logText).then(() => alert('Logs copied to clipboard!'));
-                }}
-                className="text-stone-400 hover:text-white bg-stone-800 px-2 py-1 rounded text-[9px] uppercase font-bold transition-colors border border-stone-600"
-             >
-                Copy Logs
-             </button>
-           </div>
-           <div className="flex flex-col gap-1 overflow-y-auto max-h-[300px]">
-             {debugLogs.map(log => {
-               let textClass = "text-green-400";
-               if (log.type === 'error') textClass = "text-red-400";
-               if (log.type === 'warning') textClass = "text-orange-400 font-bold";
-               if (log.type === 'step') textClass = "text-blue-400 font-bold";
-               if (log.type === 'network') textClass = "text-purple-400";
-
-               return (
-                 <div key={log.id} className={`${textClass} break-all`}>
-                   <span className="text-stone-500 mr-2">[{log.time}]</span>
-                   {log.msg}
-                 </div>
-               );
-             })}
-           </div>
-        </div>
-      )}
-
       {/* Video Element */}
       <video
         ref={videoRef}
@@ -469,30 +423,8 @@ export default function Player({ streamUrl }) {
 
       {/* Buffering Indicator */}
       {isBuffering && streamUrl && !error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto z-40">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mb-6"></div>
-          
-          <div className="flex gap-4 mb-6">
-            {[1, 2, 3].map(t => (
-               <button
-                 key={t}
-                 onClick={(e) => { e.stopPropagation(); if (loadTierRef.current) loadTierRef.current(t); }}
-                 className={`px-6 py-2 rounded text-sm uppercase font-bold border-2 transition-all ${
-                   activeTier === t
-                     ? 'bg-amber-600 text-white border-amber-400 scale-105 shadow-lg shadow-amber-500/20'
-                     : 'bg-stone-800 text-stone-400 border-stone-600 hover:bg-stone-700 hover:text-white'
-                 }`}
-               >
-                 Server {t}
-               </button>
-             ))}
-          </div>
-
-          {debugLogs.length > 0 && (
-            <div className="text-amber-400 font-mono text-[12px] text-center max-w-[80%] drop-shadow-lg font-bold animate-pulse bg-black/50 px-4 py-2 rounded">
-               {debugLogs[debugLogs.length - 1].msg}
-            </div>
-          )}
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none z-40">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
         </div>
       )}
 
@@ -501,40 +433,13 @@ export default function Player({ streamUrl }) {
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white p-6 text-center z-40">
           <p className="text-red-400 mb-6 font-space-mono text-[14px] uppercase">{error}</p>
           
-          <div className="flex gap-4 mb-6">
-            {[1, 2, 3].map(t => (
-               <button
-                 key={t}
-                 onClick={(e) => { e.stopPropagation(); if (loadTierRef.current) loadTierRef.current(t); }}
-                 className={`px-6 py-2 rounded text-sm uppercase font-bold border-2 transition-all ${
-                   activeTier === t
-                     ? 'bg-amber-600 text-white border-amber-400 scale-105 shadow-lg shadow-amber-500/20'
-                     : 'bg-stone-800 text-stone-400 border-stone-600 hover:bg-stone-700 hover:text-white'
-                 }`}
-               >
-                 Server {t}
-               </button>
-             ))}
-          </div>
-
-          <div className="flex gap-4">
-             <button 
-              onClick={handleRetry}
-              className="flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-700 text-white border border-stone-600 transition-colors uppercase font-black text-[12px]"
-            >
-              <RefreshCw size={16} />
-              RETRY
-            </button>
-            <button
-              onClick={() => {
-                const logText = debugLogs.map(l => `[${l.time}] [${l.type.toUpperCase()}] ${l.msg}`).join('\n');
-                navigator.clipboard.writeText(logText).then(() => alert('Logs copied to clipboard!'));
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-700 transition-colors uppercase font-black text-[12px]"
-            >
-              COPY LOGS
-            </button>
-          </div>
+          <button 
+             onClick={handleRetry}
+             className="flex items-center gap-2 px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold uppercase rounded shadow-lg transition-colors"
+          >
+             <RefreshCw size={18} />
+             RETRY STREAM
+          </button>
         </div>
       )}
 
