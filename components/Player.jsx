@@ -113,10 +113,11 @@ export default function Player({ streamUrl }) {
          const targetUrl = streamUrl.trim();
 
          const isCloudfront = targetUrl.includes('cloudfront.net');
+         const isIPAddress = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(new URL(targetUrl).hostname);
 
          let finalStreamUrl = targetUrl;
-         if (isCloudfront) {
-             // Explicitly force localhost:3000 for cloudfront streams as requested
+         if (isCloudfront || isIPAddress) {
+             // Explicitly force localhost:3000 for cloudfront and raw IP streams as requested
              finalStreamUrl = `http://localhost:3000/api/proxy?targetUrl=${encodeURIComponent(targetUrl)}`;
          } else if (tier === 1) {
              finalStreamUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
@@ -171,8 +172,11 @@ export default function Player({ streamUrl }) {
                   }
 
                   const isChunkCloudfront = requestUrl.includes('cloudfront.net');
+                  let isChunkRawIP = false;
+                  try { isChunkRawIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(new URL(requestUrl).hostname); } catch(e) {}
+
                   let proxiedChunkUrl = requestUrl;
-                  if (isChunkCloudfront) proxiedChunkUrl = `http://localhost:3000/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
+                  if (isChunkCloudfront || isChunkRawIP) proxiedChunkUrl = `http://localhost:3000/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
                   else if (tier === 1) proxiedChunkUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
                   else if (tier === 3) proxiedChunkUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(requestUrl)}`;
                   else proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;

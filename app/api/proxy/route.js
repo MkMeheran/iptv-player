@@ -13,12 +13,13 @@ export async function GET(request) {
         const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
         let fetchResponse;
 
-        // ১. কাস্টম পোর্ট চেকিং এবং Cloudfront চেকিং
+        // ১. কাস্টম পোর্ট, Cloudfront এবং Raw IP চেকিং
         const isCustomPort = parsedUrl.port && !['80', '443', '8080', '8443'].includes(parsedUrl.port);
         const isCloudfront = parsedUrl.hostname.includes('cloudfront.net');
+        const isIPAddress = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(parsedUrl.hostname);
 
-        if (isCustomPort || isCloudfront) {
-            // Cloudflare-এ না পাঠিয়ে Next.js নিজে সরাসরি ফেচ করবে (Cloudfront এবং কাস্টম পোর্টের জন্য)
+        if (isCustomPort || isCloudfront || isIPAddress) {
+            // Cloudflare-এ না পাঠিয়ে Next.js নিজে সরাসরি ফেচ করবে (Cloudfront, Custom Port এবং IP Address এর জন্য)
             fetchResponse = await fetch(targetUrl, {
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
             });
