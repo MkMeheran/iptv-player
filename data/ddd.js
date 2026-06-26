@@ -23,6 +23,21 @@ https://stavo.site/proxy.php?u=https://andro.evrenesoglu57.click/checklist/andro
 #EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 08
 https://stavo.site/proxy.php?u=https://live05.meung.app/live/90865415.m3u8
 
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 09
+https://trs1.aynaott.com/tsports/tracks-v1a1/mono.ts.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 10
+https://andro.evrenesoglu57.click/checklist/androstreamliveexn3.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 11
+https://dfr80qz435crc.cloudfront.net/MNOP/Amagi/Caze/Caze_TV_BR/360p-vtt/index.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 12
+https://s6.hopslan.com/ardX/tracks-v1a1/mono.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 13
+https://sports.abdullahroman276.workers.dev/live/roman368/01726686368/459.m3u8
+
 #EXTINF:-1 group-title="FIFA World Cup 26",Football World Cup 2026 T-Sports
 http://198.195.239.50:8095/tsports/tracks-v1a1/mono.m3u8
 #EXTINF:-1 group-title="FIFA World Cup 26" tvg-logo="https://imglink.cc/cdn/RY7jBwPKAr.jpg", D Sports

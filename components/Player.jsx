@@ -108,7 +108,7 @@ export default function Player({ streamUrl }) {
 
          let proxyName = "Cloudflare Worker";
          if (tier === 2) proxyName = "Next.js Proxy";
-         if (tier === 3) proxyName = "Custom IP Proxy";
+         if (tier === 3) proxyName = "Fisolive Proxy";
 
          const targetUrl = streamUrl.trim();
 
@@ -126,7 +126,7 @@ export default function Player({ streamUrl }) {
          } else if (tier === 1) {
              finalStreamUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
          } else if (tier === 3) {
-             finalStreamUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(targetUrl)}`;
+             finalStreamUrl = `https://fisolive.xo.je/?url=${encodeURIComponent(targetUrl)}`;
          } else {
              // Default to Tier 2 (Next.js Proxy)
              finalStreamUrl = `/api/proxy?targetUrl=${encodeURIComponent(targetUrl)}`;
@@ -185,7 +185,7 @@ export default function Player({ streamUrl }) {
                   if (isChunkStreamHosting || isChunkStavoSite) proxiedChunkUrl = requestUrl;
                   else if (isChunkCloudfront || isChunkRawIP) proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
                   else if (tier === 1) proxiedChunkUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
-                  else if (tier === 3) proxiedChunkUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(requestUrl)}`;
+                  else if (tier === 3) proxiedChunkUrl = `https://fisolive.xo.je/?url=${encodeURIComponent(requestUrl)}`;
                   else proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
 
                   request.uris[0] = proxiedChunkUrl;
