@@ -114,11 +114,15 @@ export default function Player({ streamUrl }) {
 
          const isCloudfront = targetUrl.includes('cloudfront.net');
          const isIPAddress = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(new URL(targetUrl).hostname);
+         const isStreamHosting = targetUrl.includes('streamhostingcdn.top');
+         const isStavoSite = targetUrl.includes('stavo.site');
 
          let finalStreamUrl = targetUrl;
-         if (isCloudfront || isIPAddress) {
-             // Explicitly force localhost:3000 for cloudfront and raw IP streams as requested
-             finalStreamUrl = `http://localhost:3000/api/proxy?targetUrl=${encodeURIComponent(targetUrl)}`;
+         if (isStreamHosting || isStavoSite) {
+             finalStreamUrl = targetUrl; // Direct URL without any proxy
+         } else if (isCloudfront || isIPAddress) {
+             // Explicitly force Next.js Proxy for cloudfront and raw IP streams
+             finalStreamUrl = `/api/proxy?targetUrl=${encodeURIComponent(targetUrl)}`;
          } else if (tier === 1) {
              finalStreamUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
          } else if (tier === 3) {
@@ -172,11 +176,14 @@ export default function Player({ streamUrl }) {
                   }
 
                   const isChunkCloudfront = requestUrl.includes('cloudfront.net');
+                  const isChunkStreamHosting = requestUrl.includes('streamhostingcdn.top');
+                  const isChunkStavoSite = requestUrl.includes('stavo.site');
                   let isChunkRawIP = false;
                   try { isChunkRawIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(new URL(requestUrl).hostname); } catch(e) {}
 
                   let proxiedChunkUrl = requestUrl;
-                  if (isChunkCloudfront || isChunkRawIP) proxiedChunkUrl = `http://localhost:3000/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
+                  if (isChunkStreamHosting || isChunkStavoSite) proxiedChunkUrl = requestUrl;
+                  else if (isChunkCloudfront || isChunkRawIP) proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;
                   else if (tier === 1) proxiedChunkUrl = `https://iptv-proxy.mdmokammelmorshed.workers.dev/?url=${encodeURIComponent(requestUrl)}`;
                   else if (tier === 3) proxiedChunkUrl = `https://<YOUR_CUSTOM_IP_PROXY_HERE>/?url=${encodeURIComponent(requestUrl)}`;
                   else proxiedChunkUrl = `/api/proxy?targetUrl=${encodeURIComponent(requestUrl)}`;

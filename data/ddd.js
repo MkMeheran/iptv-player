@@ -1,10 +1,32 @@
 export const defaultPlaylistData = `#EXTM3U
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 01
+https://stavo.site/proxy.php?u=https://prod-cdn01-live.toffeelive.com/live/FIFA-2026-6/index.m3u8?edge-cache-token=Expires=1782504171~Starts=1782417771~URLPrefix=aHR0cHM6Ly9wcm9kLWNkbjAxLWxpdmUudG9mZmVlbGl2ZS5jb20~Signature=eynpTyOM0EKX5HZn5ue3xaS5B4tQCAbAF9PUpxM76hLHJ71ckLq9JIwHy1fNBnKVpGOcLGQIHYm4GcaX7hgnDw
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 02
+https://stavo.site/proxy.php?u=https://prod-cdn01-live.toffeelive.com/live/FIFA-2026-3/3/master_1000.m3u8?hdntl=Expires=1782527420~_GO=Generated~URLPrefix=aHR0cHM6Ly9wcm9kLWNkbjAxLWxpdmUudG9mZmVlbGl2ZS5jb20~Signature=AVXEwve0Sp84fB9eOqUKM0TR4YvkFsMH2hMgIuXxu1Og6Io8wDUuKhuyrom3QzPendlPru2UIdDdbcxDoMIuYlXN7nIA
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 03
+https://stavo.site/proxy.php?u=https://prod-cdn01-live.toffeelive.com/live/FIFA-2026-5/0/master_2000.m3u8?hdntl=Expires=1782527629~_GO=Generated~URLPrefix=aHR0cHM6Ly9wcm9kLWNkbjAxLWxpdmUudG9mZmVlbGl2ZS5jb20~Signature=AVXEwveSeULzlmu3bYAeWu--YjBTr7I36GtMlEjObR9bHcI3oOfm42ulWghL1pWTuNlgYL-v_E5QB3aqgY_NlOuPIZkG
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 04
+https://stavo.site/proxy.php?u=https://prod-cdn01-live.toffeelive.com/live/FIFA-2026-4/0/master_2000.m3u8?hdntl=Expires=1782527682~_GO=Generated~URLPrefix=aHR0cHM6Ly9wcm9kLWNkbjAxLWxpdmUudG9mZmVlbGl2ZS5jb20~Signature=AVXEwvf9d7MnzCDLC-AKjtTw3WvZ_zHec6XNb6AzQxmIauyMVfi-FWZ1u3pEmHLeJmrX18MX0Ib_Y6AjgjI_S7oXrhAA
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 05
+https://stavo.site/proxy.php?u=https://tfx03gr3uomttgr31hp3tfahdrmmeqfsg17uff3hsnhuqcp1ghmucpf5gk.100ycdn.com/hqlive.yarncdn.live/live/hqtv_blv_phanma/playlist.m3u8?wsSession=906ad5fb1f3cd65b08089c5c-178233955608814&wsIPSercert=b623934e568f9827088aedefe4cc6cdd&wsBindIP=2&wsserid=1168201446955599295
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 06
+https://stavo.site/proxy.php?u=https://1nyaler.streamhostingcdn.top/stream/94/index.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 07
+https://stavo.site/proxy.php?u=https://andro.evrenesoglu57.click/checklist/androstreamliveexn3.m3u8
+
+#EXTINF:-1 group-title="FIFA World Cup 26", FIFA Live 08
+https://stavo.site/proxy.php?u=https://live05.meung.app/live/90865415.m3u8
+
 #EXTINF:-1 group-title="FIFA World Cup 26",Football World Cup 2026 T-Sports
 http://198.195.239.50:8095/tsports/tracks-v1a1/mono.m3u8
-
-
-#EXTINF:-1 group-title="FIFA World Cup 26",FOX Mpd
-https://otte-qw.live.pv-cdn.net/pdx-nitro/live/clients/dash/enc/pfcxjf1zas/out/v1/31d30c91fc65458789b84209d3fa22e4/cenc.mpd?keyId=1f68713028d439ec03be07f56c1d6213&key=20093db6455160fffed4c394def3193d
+#EXTINF:-1 group-title="FIFA World Cup 26" tvg-logo="https://imglink.cc/cdn/RY7jBwPKAr.jpg", D Sports
+https://1nyaler.streamhostingcdn.top/stream/106/index.m3u8
 
 #EXTINF:-1 group-title="FIFA World Cup 26",BEIN SPORTS XTRA
 https://dc1644a9jazgj.cloudfront.net/beIN_Sports_Xtra_Espanol1080.m3u8
